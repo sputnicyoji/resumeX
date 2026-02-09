@@ -365,6 +365,14 @@ python scripts/match.py --jd jd.txt --top 10
 | JDスマートマッチング | JDテキストから要件を自動抽出、5次元加重スコアリング |
 | 外部API不要 | PyMuPDF + python-docxのみ |
 
+### v1.2 更新履歴
+
+| バージョン | 変更内容 |
+|-----------|----------|
+| **v1.2** | スマート重複除去: `_is_distinct_entity` ルールにより、同一テキストブロックを共有する異なるエンティティの誤削除を防止 (例: H3CNE/H3CSE/CISPが同一行から抽出) |
+| **v1.1** | スキルカテゴリ 5→8 (+アルゴリズム/ドメイン/方法論)、経歴からの暗黙的スキル抽出、時刻フォーマット正規化 (7種)、ファイル名メタデータ解析、PDFトラッキングノイズ除去 |
+| v1.0 | 初版リリース: 7種HRタイプ、6ステップパイプライン、SQLite DB、JDマッチング |
+
 ### アーキテクチャ
 
 ```
@@ -458,6 +466,32 @@ python scripts/match.py --jd jd.txt --top 10
 | `time_normalizer.py` | 時刻フォーマット正規化 | パイプラインステップ1に統合 |
 | `filename_parser.py` | ファイル名メタデータ抽出 | `【職種_都市 給与K】氏名.pdf` を解析 |
 
+### パイプラインステップ (7ステップ)
+
+```
+1. Time Normalization   -> 日付をYYYY.MM形式に正規化 (7種のフォーマット変換)
+2. Source Grounding     -> テキストを履歴書原文に位置特定 (char_start/end + 行番号)
+3. Overlap Dedup        -> スマート重複除去: 異なるタイプまたは異なる名前 = 別エンティティ、除去をスキップ
+4. Confidence Score     -> 4次元品質スコアリング
+5. Entity Resolution    -> 同名候補者の統合 (HRデフォルト: ON)
+6. Relation Inference   -> 人-企業-スキル関係の推論 (HRデフォルト: ON)
+7. KG Injection         -> ナレッジグラフ形式変換 (オプション)
+```
+
+### データベーステーブル構造 (正規化テーブル8つ)
+
+| テーブル | 説明 |
+|----------|------|
+| `candidates` | 候補者基本情報 (氏名/性別/年齢/電話/メール/都市) |
+| `experiences` | 職務経歴 (企業/役職/期間/職務内容/在籍期間) |
+| `projects` | プロジェクト経歴 (experienceの下位) |
+| `educations` | 学歴 (学校/専攻/学位/GPA) |
+| `skills` | スキル辞書テーブル (スキル名/カテゴリ) |
+| `candidate_skills` | 候補者-スキル関連 (習熟度/年数) |
+| `job_intentions` | 希望条件 (希望職種/給与/都市/入社可能時期) |
+| `self_evaluations` | 自己PR (原文/特性タグ) |
+| `certifications` | 資格・認定 (資格名/発行機関/取得日/有効期限) |
+
 ### JDマッチングスコア次元
 
 | 次元 | 重み | アルゴリズム |
@@ -467,6 +501,15 @@ python scripts/match.py --jd jd.txt --top 10
 | education (学歴) | 15% | 学歴レベル比較 (5段階) |
 | city (都市) | 15% | 都市名の部分一致 |
 | salary (給与) | 10% | JD給与範囲と候補者希望の重複度 |
+
+### Claude Code vs Cursor
+
+| 機能 | Claude Code (SKILL.md) | Cursor (.mdc) |
+|------|------------------------|---------------|
+| スキル場所 | `.claude/skills/resume-extractor/` | `.cursor/skills/resumex/` |
+| ルールファイル | `SKILL.md` (自動検出) | `.cursor/rules/resumex.mdc` |
+| パイプライン | 同一 `scripts/pipeline.py` | 同一 `scripts/pipeline.py` |
+| データベース | 同一 `scripts/storage.py` | 同一 `scripts/storage.py` |
 
 ---
 
@@ -533,3 +576,11 @@ resumeX/
 ## License
 
 MIT License. See [LICENSE](LICENSE).
+
+## Author
+
+**Yoji** - The fear of the Lord is the beginning of wisdom. — Proverbs 9:10
+
+---
+
+_Part of the Claude Code skill ecosystem_
